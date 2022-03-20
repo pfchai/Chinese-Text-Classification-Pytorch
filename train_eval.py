@@ -1,12 +1,16 @@
 # coding: UTF-8
+
+import time
+from importlib import import_module
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn import metrics
-import time
-from utils import get_time_dif
 from tensorboardX import SummaryWriter
+
+from utils import get_time_dif
 
 
 # 权重初始化，默认xavier
@@ -26,7 +30,7 @@ def init_network(model, method='xavier', exclude='embedding', seed=123):
                 pass
 
 
-def train(config, model, train_iter, dev_iter, test_iter):
+def train(config, model, train_iter, dev_iter, test_iter, adversarial=None):
     start_time = time.time()
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
@@ -38,15 +42,25 @@ def train(config, model, train_iter, dev_iter, test_iter):
     last_improve = 0  # 记录上次验证集loss下降的batch数
     flag = False  # 记录是否很久没有效果提升
     writer = SummaryWriter(log_dir=config.log_path + '/' + time.strftime('%m-%d_%H.%M', time.localtime()))
+
+    if adversarial:
+        x = import_module('adversarial.' + adversarial['name'])
+        attacker = x.Attacker(model, optimizer, **adversarial)
+        if adversarial['name'] in ('PGD',):
+            config.num_epochs = config.num_epochs // adversarial['K']
+
     for epoch in range(config.num_epochs):
         print('Epoch [{}/{}]'.format(epoch + 1, config.num_epochs))
         # scheduler.step() # 学习率衰减
         for i, (trains, labels) in enumerate(train_iter):
-            outputs = model(trains)
-            model.zero_grad()
-            loss = F.cross_entropy(outputs, labels)
-            loss.backward()
-            optimizer.step()
+            if adversarial:
+                outputs, loss = attacker.train(trains, labels)
+            else:
+                outputs = model(trains)
+                model.zero_grad()
+                loss = F.cross_entropy(outputs, labels)
+                loss.backward()
+                optimizer.step()
             if total_batch % 100 == 0:
                 # 每多少轮输出在训练集和验证集上的效果
                 true = labels.data.cpu()

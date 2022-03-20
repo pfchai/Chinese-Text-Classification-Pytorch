@@ -10,6 +10,11 @@ parser = argparse.ArgumentParser(description='Chinese Text Classification')
 parser.add_argument('--model', type=str, required=True, help='choose a model: TextCNN, TextRNN, FastText, TextRCNN, TextRNN_Att, DPCNN, Transformer')
 parser.add_argument('--embedding', default='pre_trained', type=str, help='random or pre_trained')
 parser.add_argument('--word', default=False, type=bool, help='True for word, False for char')
+parser.add_argument('--adversarial', type=str, help='对抗训练方法')
+parser.add_argument('--adv_epsilon', type=float, default=0.01, help='对抗训练参数 epsilon')
+parser.add_argument('--adv_alpha', type=float, default=0.05, help='对抗训练参数 alpha')
+parser.add_argument('--adv_k', type=int, default=4, help='对抗训练参数 K')
+parser.add_argument('--no_dropout', type=bool, default=False, help='是否去掉dropout操作')
 args = parser.parse_args()
 
 
@@ -45,8 +50,31 @@ if __name__ == '__main__':
 
     # train
     config.n_vocab = len(vocab)
+    config.no_dropout = args.no_dropout
     model = x.Model(config).to(config.device)
     if model_name != 'Transformer':
         init_network(model)
     print(model.parameters)
-    train(config, model, train_iter, dev_iter, test_iter)
+
+    # adversarial train
+    adversarial = {}
+    if args.adversarial:
+        if args.adversarial.lower() == 'fgsm':
+            adversarial = {
+                'name': 'FGSM',
+                'epsilon': args.adv_epsilon,
+            }
+        if args.adversarial.lower() == 'pgd':
+            adversarial = {
+                'name': 'PGD',
+                'epsilon': args.adv_epsilon,
+                'alpha': args.adv_alpha,
+                'K': args.adv_k,
+            }
+        if args.adversarial.lower() == 'freeat':
+            adversarial = {
+                'name': 'FreeAT',
+                'epsilon': args.adv_epsilon,
+                'K': args.adv_k,
+            }
+    train(config, model, train_iter, dev_iter, test_iter, adversarial)
