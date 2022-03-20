@@ -8,12 +8,13 @@
 项目代码介绍，请移步[Chinese-Text-Classification-Pytorch](https://github.com/649453932/Chinese-Text-Classification-Pytorch)
 
 ## 环境
+```
 python 3.7
 pytorch 1.1
 tqdm
 sklearn
 tensorboardX
-
+```
 
 ## 使用说明
 
